@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+venv/
+.env
+
+# JavaScript/Node.js
+node_modules/
+dist/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+
+# OS specific files
+.DS_Store
+
+# Database
+*.sqlite3
+*.db
+
+# Redis
+dump.rdb 
