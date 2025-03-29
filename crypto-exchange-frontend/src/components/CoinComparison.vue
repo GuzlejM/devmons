@@ -17,10 +17,13 @@ const fetchComparisonData = async (id: string) => {
   error.value = null;
   
   try {
-    comparisonData.value = await getComparison(id);
+    const data = await getComparison(id);
+    console.log('Comparison data:', data);
+    comparisonData.value = data;
   } catch (err) {
+    console.error('Error fetching comparison data:', err);
     error.value = 'Failed to load comparison data';
-    console.error(err);
+    comparisonData.value = null;
   } finally {
     loading.value = false;
   }
@@ -49,11 +52,11 @@ watch(() => props.coinId, (newValue) => {
       {{ error }}
     </div>
     
-    <div v-else-if="comparisonData" class="comparison-results">
+    <div v-else-if="comparisonData && comparisonData.exchanges && comparisonData.best_price" class="comparison-results">
       <h2>{{ comparisonData.coin }} Price Comparison</h2>
       
       <div class="best-options">
-        <div class="best-option">
+        <div v-if="comparisonData.best_price" class="best-option">
           <h3>Best Price</h3>
           <div class="exchange-card highlight">
             <div class="exchange-name">{{ comparisonData.best_price.exchange_name }}</div>
@@ -73,7 +76,7 @@ watch(() => props.coinId, (newValue) => {
       </div>
       
       <h3>All Exchanges</h3>
-      <div class="exchanges-table">
+      <div v-if="comparisonData.exchanges && comparisonData.exchanges.length > 0" class="exchanges-table">
         <table>
           <thead>
             <tr>
@@ -89,7 +92,7 @@ watch(() => props.coinId, (newValue) => {
           <tbody>
             <tr v-for="exchange in comparisonData.exchanges" :key="exchange.exchange_name">
               <td>{{ exchange.exchange_name }}</td>
-              <td>${{ exchange.price_usd.toLocaleString() }}</td>
+              <td>${{ exchange.price_usd?.toLocaleString() || 'N/A' }}</td>
               <td>${{ exchange.volume_24h?.toLocaleString() || 'N/A' }}</td>
               <td>${{ exchange.bid_price?.toLocaleString() || 'N/A' }}</td>
               <td>${{ exchange.ask_price?.toLocaleString() || 'N/A' }}</td>
@@ -99,6 +102,13 @@ watch(() => props.coinId, (newValue) => {
           </tbody>
         </table>
       </div>
+      <div v-else class="no-exchanges">
+        No exchange data available for this cryptocurrency
+      </div>
+    </div>
+    
+    <div v-else-if="comparisonData === null" class="no-data">
+      No comparison data available
     </div>
   </div>
 </template>
@@ -108,7 +118,7 @@ watch(() => props.coinId, (newValue) => {
   padding: 1rem;
 }
 
-.select-prompt, .loading, .error {
+.select-prompt, .loading, .error, .no-data, .no-exchanges {
   text-align: center;
   padding: 2rem;
   background-color: #f5f5f5;
