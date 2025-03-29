@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { Coin, getCoins, getComparison, createCoin } from '../services/api'
+import { Coin, getCoins, getComparison, createCoin, deleteCoin } from '../services/api'
 import { useToast } from 'vue-toastification'
 
 const toast = useToast()
@@ -82,6 +82,37 @@ export const useCoinsStore = defineStore('coins', () => {
     }
   }
   
+  const removeCoin = async (coinId: number) => {
+    loading.value = true
+    error.value = null
+    
+    try {
+      // Find the coin before deletion for the success message
+      const coinToDelete = coins.value.find(c => c.id === coinId)
+      
+      // Call API to delete the coin
+      await deleteCoin(coinId)
+      
+      // Remove from local state
+      coins.value = coins.value.filter(c => c.id !== coinId)
+      
+      // Show success message
+      if (coinToDelete) {
+        toast.success(`Removed ${coinToDelete.name} successfully!`)
+      } else {
+        toast.success('Coin removed successfully')
+      }
+    } catch (err: any) {
+      console.error('Error removing coin:', err)
+      const errorMessage = err.response?.data?.detail || 'Failed to remove coin'
+      error.value = errorMessage
+      toast.error(errorMessage)
+      throw err
+    } finally {
+      loading.value = false
+    }
+  }
+  
   return {
     // State
     coins,
@@ -102,6 +133,7 @@ export const useCoinsStore = defineStore('coins', () => {
     setSelectedCoin,
     setSearchQuery,
     setPage,
-    addNewCoin
+    addNewCoin,
+    removeCoin
   }
 }) 

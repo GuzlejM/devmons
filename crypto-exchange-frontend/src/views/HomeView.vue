@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useToast } from 'vue-toastification'
 import { useCoinsStore } from '../stores/coins'
@@ -9,6 +9,8 @@ import Pagination from '../components/Pagination.vue'
 const router = useRouter()
 const toast = useToast()
 const coinsStore = useCoinsStore()
+const showDeleteModal = ref(false)
+const coinToDelete = ref<{ id: number, name: string } | null>(null)
 
 const handleCoinSelect = (coinId: string) => {
   router.push({ name: 'compare', params: { id: coinId } })
@@ -16,6 +18,29 @@ const handleCoinSelect = (coinId: string) => {
 
 const handleAddCoin = () => {
   router.push({ name: 'add-coin' })
+}
+
+const confirmDelete = (e: Event, coin: { id: number, name: string }) => {
+  e.stopPropagation() // Prevent card click event
+  coinToDelete.value = coin
+  showDeleteModal.value = true
+}
+
+const cancelDelete = () => {
+  showDeleteModal.value = false
+  coinToDelete.value = null
+}
+
+const deleteCoin = async () => {
+  if (!coinToDelete.value) return
+  
+  try {
+    await coinsStore.removeCoin(coinToDelete.value.id)
+    showDeleteModal.value = false
+    coinToDelete.value = null
+  } catch (error) {
+    // Error is handled in the store
+  }
 }
 
 onMounted(async () => {
@@ -77,20 +102,32 @@ onMounted(async () => {
         @click="handleCoinSelect(coin.coingecko_id)"
       >
         <div class="p-6">
-          <div class="flex items-center mb-4">
-            <div class="h-12 w-12 bg-primary-100 rounded-full flex items-center justify-center mr-4">
-              <img 
-                v-if="coin.logo_url" 
-                :src="coin.logo_url" 
-                :alt="coin.name" 
-                class="h-8 w-8 rounded-full"
-              />
-              <span v-else class="text-primary-700 font-bold text-xl">{{ coin.symbol.charAt(0) }}</span>
+          <div class="flex items-center justify-between mb-4">
+            <div class="flex items-center">
+              <div class="h-12 w-12 bg-primary-100 rounded-full flex items-center justify-center mr-4">
+                <img 
+                  v-if="coin.logo_url" 
+                  :src="coin.logo_url" 
+                  :alt="coin.name" 
+                  class="h-8 w-8 rounded-full"
+                />
+                <span v-else class="text-primary-700 font-bold text-xl">{{ coin.symbol.charAt(0) }}</span>
+              </div>
+              <div>
+                <h3 class="text-lg font-bold text-gray-900">{{ coin.symbol }}</h3>
+                <p class="text-sm text-gray-500">{{ coin.name }}</p>
+              </div>
             </div>
-            <div>
-              <h3 class="text-lg font-bold text-gray-900">{{ coin.symbol }}</h3>
-              <p class="text-sm text-gray-500">{{ coin.name }}</p>
-            </div>
+            
+            <button 
+              class="text-gray-400 hover:text-red-500 p-1"
+              @click.stop="confirmDelete($event, { id: coin.id, name: coin.name })"
+              title="Delete coin"
+            >
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+            </button>
           </div>
           
           <div class="border-t border-gray-100 pt-4 mt-2">
@@ -109,5 +146,38 @@ onMounted(async () => {
       @change-page="coinsStore.setPage"
       class="mt-8" 
     />
+    
+    <!-- Delete confirmation modal -->
+    <div v-if="showDeleteModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div class="bg-white rounded-lg shadow-xl max-w-md w-full p-6 animate-fade-in">
+        <h3 class="text-xl font-bold text-gray-900 mb-4">Confirm Deletion</h3>
+        <p class="text-gray-700 mb-6">
+          Are you sure you want to delete <strong>{{ coinToDelete?.name }}</strong>? This action cannot be undone.
+        </p>
+        <div class="flex justify-end gap-4">
+          <button @click="cancelDelete" class="btn-secondary">
+            Cancel
+          </button>
+          <button @click="deleteCoin" class="btn-danger">
+            Delete
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
-</template> 
+</template>
+
+<style scoped>
+.animate-fade-in {
+  animation: fadeIn 0.2s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.btn-danger {
+  @apply bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-lg shadow-sm transition-colors;
+}
+</style> 

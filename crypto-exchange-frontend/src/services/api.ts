@@ -129,6 +129,16 @@ export const createCoin = async (coin: { coingecko_id: string, symbol: string, n
   }
 };
 
+export const deleteCoin = async (coinId: number): Promise<Coin> => {
+  try {
+    const response = await apiClient.delete(`/coins/${coinId}`);
+    return response.data;
+  } catch (error) {
+    console.error('Failed to delete coin:', error);
+    throw error;
+  }
+};
+
 export const getExchangeFees = async (exchangeId: number): Promise<any[]> => {
   try {
     const response = await apiClient.get(`/compare/fees/${exchangeId}/`);

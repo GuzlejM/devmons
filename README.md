@@ -17,6 +17,8 @@ DevMons is a comprehensive cryptocurrency exchange comparison platform designed 
 - **Advanced Filtering**: Filter comparisons by exchange, cryptocurrency, or specific criteria
 - **Responsive Design**: Seamless experience across desktop, tablet, and mobile devices
 - **User-friendly Interface**: Clean, intuitive UI designed for both beginners and professional traders
+- **Complete CRUD Operations**: Full Create, Read, Update, and Delete capabilities for cryptocurrency management
+- **Automatic Data Updates**: Background data synchronization with CoinGecko API every 4 hours
 
 ## 🔧 Tech Stack
 
@@ -100,6 +102,32 @@ DevMons is a comprehensive cryptocurrency exchange comparison platform designed 
 - Access standardized data from multiple exchanges
 - Build custom tools and integrations with the API
 - Utilize Docker-based architecture for easy deployment and scaling
+
+## 🔄 Data Updates
+
+The application fetches and updates data from CoinGecko API in multiple ways:
+
+1. **Automatic Background Updates**:
+   - Data is automatically refreshed every 4 hours
+   - Updates include coins, exchanges, and prices
+   - Updates run as background tasks to avoid blocking user requests
+
+2. **Initial Data Loading**: 
+   - When the application first starts, it loads top cryptocurrencies and exchanges
+   - An initial background update is also scheduled on startup
+
+3. **On-Demand Updates**: 
+   - Data can be manually refreshed via API endpoints:
+     - `GET /update` - Trigger a full data update
+     - `GET /update/status` - Check last update timestamps
+
+4. **Cache Management**: 
+   - API responses are cached to improve performance:
+     - Coin listings: cached for 24 hours
+     - Exchange listings: cached for 24 hours
+     - Price data: cached for 5 minutes
+
+All updates happen asynchronously in the background using FastAPI's background tasks system, ensuring the application remains responsive at all times.
 
 ## 🔍 Project Structure
 
