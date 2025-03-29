@@ -47,7 +47,7 @@ DevMons is a comprehensive cryptocurrency exchange comparison platform designed 
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/yourusername/devmons.git
+   git clone https://github.com/GuzlejM/devmons.git
    cd devmons
    ```
 
@@ -64,7 +64,7 @@ DevMons is a comprehensive cryptocurrency exchange comparison platform designed 
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/yourusername/devmons.git
+   git clone https://github.com/GuzlejM/devmons.git
    cd devmons
    ```
 
@@ -234,12 +234,12 @@ If you're on Windows and don't have any development tools installed, follow thes
    - Open Command Prompt (search for "cmd" in the Start menu)
    - Clone the repository:
      ```
-     git clone https://github.com/yourusername/devmons.git
+     git clone https://github.com/GuzlejM/devmons.git
      cd devmons
      ```
    
    Alternatively, if you don't want to install Git:
-   - Download the project as a ZIP file from the GitHub repository
+   - Download the project as a ZIP file from [https://github.com/GuzlejM/devmons](https://github.com/GuzlejM/devmons)
    - Extract the ZIP file to a folder on your computer
    - Open Command Prompt and navigate to the extracted folder
 
