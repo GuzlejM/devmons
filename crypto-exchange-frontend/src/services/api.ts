@@ -119,6 +119,16 @@ export const getComparison = async (coinId: string, amount?: number): Promise<an
   }
 };
 
+export const createCoin = async (coin: { coingecko_id: string, symbol: string, name: string, logo_url?: string }): Promise<Coin> => {
+  try {
+    const response = await apiClient.post('/coins/', coin);
+    return response.data;
+  } catch (error) {
+    console.error('Failed to create coin:', error);
+    throw error;
+  }
+};
+
 export const getExchangeFees = async (exchangeId: number): Promise<any[]> => {
   try {
     const response = await apiClient.get(`/compare/fees/${exchangeId}/`);
