@@ -130,11 +130,34 @@ async def update_prices_task(db: Session):
                 # Fetch ticker data for each coin
                 ticker_data = await coingecko.get_coin_tickers(coin.coingecko_id)
                 
+                # Process exchanges, keeping only highest volume ticker per exchange
+                exchange_data = {}
+                
                 for ticker in ticker_data.get("tickers", []):
                     exchange_name = ticker.get("market", {}).get("name")
                     if not exchange_name:
                         continue
                     
+                    # Get volume for this ticker
+                    volume = ticker.get("converted_volume", {}).get("usd", 0)
+                    
+                    # If we've seen this exchange before, only keep the highest volume entry
+                    if exchange_name in exchange_data:
+                        if volume <= exchange_data[exchange_name]["volume"]:
+                            continue
+                    
+                    # Store this exchange data
+                    exchange_data[exchange_name] = {
+                        "name": exchange_name,
+                        "price": ticker.get("converted_last", {}).get("usd", 0),
+                        "volume": volume,
+                        "bid": ticker.get("bid"),
+                        "ask": ticker.get("ask"),
+                        "ticker": ticker
+                    }
+                
+                # Process the filtered exchanges (one per exchange name)
+                for exchange_name, data in exchange_data.items():
                     # Find exchange
                     exchange = db.query(models.Exchange).filter(models.Exchange.name == exchange_name).first()
                     if not exchange:
@@ -148,20 +171,20 @@ async def update_prices_task(db: Session):
                     
                     if price:
                         # Update existing price
-                        price.price_usd = ticker.get("converted_last", {}).get("usd", 0)
-                        price.volume_24h = ticker.get("converted_volume", {}).get("usd", 0)
-                        price.bid_price = ticker.get("bid")
-                        price.ask_price = ticker.get("ask")
+                        price.price_usd = data["price"]
+                        price.volume_24h = data["volume"]
+                        price.bid_price = data["bid"]
+                        price.ask_price = data["ask"]
                         price.last_updated = datetime.now(timezone.utc)
                     else:
                         # Create new price record
                         price = models.Price(
                             exchange_id=exchange.id,
                             coin_id=coin.id,
-                            price_usd=ticker.get("converted_last", {}).get("usd", 0),
-                            volume_24h=ticker.get("converted_volume", {}).get("usd", 0),
-                            bid_price=ticker.get("bid"),
-                            ask_price=ticker.get("ask")
+                            price_usd=data["price"],
+                            volume_24h=data["volume"],
+                            bid_price=data["bid"],
+                            ask_price=data["ask"]
                         )
                         db.add(price)
                     
@@ -175,6 +198,15 @@ async def update_prices_task(db: Session):
                 continue
         
         db.commit()
+        
+        # Clean up any duplicate prices that might still exist
+        try:
+            from app.tasks.cleanup import cleanup_duplicate_prices
+            cleanup_result = await cleanup_duplicate_prices(db)
+            logger.info(f"Cleaned up database duplicates: {cleanup_result}")
+        except Exception as e:
+            logger.error(f"Error cleaning up duplicates: {str(e)}")
+        
         logger.info(f"Price update completed: {update_count} prices updated")
     
     except Exception as e:

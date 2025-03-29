@@ -3,6 +3,7 @@ import { ref, watch, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { getComparison, ComparisonResult } from '../services/api'
 import LoadingSpinner from '../components/LoadingSpinner.vue'
+import ExchangeList from '../components/exchanges/ExchangeList.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -11,6 +12,7 @@ const coinId = ref<string>(route.params.id as string)
 const comparisonData = ref<ComparisonResult | null>(null)
 const loading = ref(false)
 const error = ref<string | null>(null)
+const selectedExchanges = ref<string[]>([])
 
 const fetchComparisonData = async (id: string) => {
   if (!id) return
@@ -46,6 +48,10 @@ onMounted(() => {
 const goBack = () => {
   router.push('/')
 }
+
+const handleCompareExchanges = (exchangesToCompare: string[]) => {
+  selectedExchanges.value = exchangesToCompare
+}
 </script>
 
 <template>
@@ -79,6 +85,7 @@ const goBack = () => {
       <div class="bg-white rounded-lg shadow-md overflow-hidden mb-8">
         <div class="px-6 py-4 bg-primary-50 border-b border-primary-100">
           <h2 class="text-2xl font-bold text-primary-900">{{ comparisonData.coin }} Prices</h2>
+          <p class="text-sm text-primary-700 mt-1">Compare prices and fees across different exchanges</p>
         </div>
         
         <div class="p-6">
@@ -114,68 +121,25 @@ const goBack = () => {
             </div>
           </div>
           
-          <h3 class="text-xl font-bold text-gray-900 mb-4">All Exchanges</h3>
-          
-          <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-gray-200">
-              <thead class="bg-gray-50">
-                <tr>
-                  <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Exchange
-                  </th>
-                  <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Price (USD)
-                  </th>
-                  <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    24h Volume
-                  </th>
-                  <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Bid
-                  </th>
-                  <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Ask
-                  </th>
-                  <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Spread
-                  </th>
-                  <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Trading Fee
-                  </th>
-                </tr>
-              </thead>
-              <tbody class="bg-white divide-y divide-gray-200">
-                <tr 
-                  v-for="exchange in comparisonData.exchanges" 
-                  :key="exchange.exchange_name"
-                  :class="{'bg-green-50': exchange.exchange_name === comparisonData.best_price?.exchange_name}"
-                >
-                  <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                    {{ exchange.exchange_name }}
-                  </td>
-                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-semibold">
-                    ${{ exchange.price_usd?.toLocaleString() || 'N/A' }}
-                  </td>
-                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    ${{ exchange.volume_24h?.toLocaleString() || 'N/A' }}
-                  </td>
-                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    ${{ exchange.bid_price?.toLocaleString() || 'N/A' }}
-                  </td>
-                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    ${{ exchange.ask_price?.toLocaleString() || 'N/A' }}
-                  </td>
-                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {{ exchange.spread ? exchange.spread.toFixed(2) + '%' : 'N/A' }}
-                  </td>
-                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {{ exchange.trading_fee ? exchange.trading_fee.toFixed(2) + '%' : 'N/A' }}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+          <!-- Exchange List Component -->
+          <ExchangeList 
+            :exchanges="comparisonData.exchanges"
+            :best-price-exchange="comparisonData.best_price?.exchange_name"
+            :best-volume-exchange="comparisonData.best_for_large_orders?.exchange_name"
+            @compare="handleCompareExchanges"
+          />
         </div>
       </div>
     </div>
   </div>
-</template> 
+</template>
+
+<style scoped>
+.card {
+  @apply rounded-lg shadow-sm overflow-hidden transition-all duration-200;
+}
+
+.card:hover {
+  @apply shadow-md;
+}
+</style> 

@@ -5,7 +5,7 @@ import asyncio
 from app.database.connection import get_db
 from app.api import exchanges, coins, compare
 from app.database.init_db import init_db
-from app.tasks import scheduler
+from app.tasks import scheduler, cleanup
 
 app = FastAPI(
     title="Crypto Exchange Comparison API",
@@ -26,6 +26,7 @@ app.add_middleware(
 app.include_router(exchanges.router, prefix="/exchanges", tags=["exchanges"])
 app.include_router(coins.router, prefix="/coins", tags=["coins"])
 app.include_router(compare.router, prefix="/compare", tags=["compare"])
+app.include_router(cleanup.router, prefix="/maintenance", tags=["maintenance"])
 
 # Add new router for data updates
 @app.get("/update", tags=["maintenance"])
@@ -48,6 +49,12 @@ async def startup_event():
     # Initialize database
     init_db()
     print("Database tables initialized at startup")
+    
+    # Clean up any duplicate prices in the database
+    db = next(get_db())
+    from app.tasks.cleanup import cleanup_duplicate_prices
+    cleanup_result = await cleanup_duplicate_prices(db)
+    print(f"Cleaned up database duplicates: {cleanup_result}")
     
     # Schedule initial background updates
     background_tasks = BackgroundTasks()

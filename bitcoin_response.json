@@ -1,0 +1,1 @@
+{"detail":"Error fetching ticker data: Client error '429 Too Many Requests' for url 'https://api.coingecko.com/api/v3/coins/bitcoin/tickers'\nFor more information check: https://httpstatuses.com/429"}
