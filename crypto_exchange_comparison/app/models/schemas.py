@@ -34,6 +34,12 @@ class CoinCreate(CoinBase):
     pass
 
 
+class CoinUpdate(BaseModel):
+    symbol: Optional[str] = None
+    name: Optional[str] = None
+    logo_url: Optional[str] = None
+
+
 class Coin(CoinBase):
     id: int
     created_at: datetime

@@ -45,6 +45,21 @@ async def create_coin(coin: schemas.CoinCreate, db: Session = Depends(get_db)):
     """
     Create a new coin
     """
+    # Verify coin exists in CoinGecko
+    try:
+        coin_data = await coingecko.get_coin_price(coin.coingecko_id)
+        if not coin_data or coin.coingecko_id not in coin_data:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Coin with ID '{coin.coingecko_id}' not found on CoinGecko"
+            )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error verifying coin on CoinGecko: {str(e)}"
+        )
+    
+    # Create the coin in the database
     db_coin = models.Coin(**coin.model_dump())
     db.add(db_coin)
     db.commit()
@@ -82,4 +97,37 @@ async def sync_top_coins_from_coingecko(limit: int = 20, db: Session = Depends(g
         
         return added_coins
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error syncing coins: {str(e)}") 
+        raise HTTPException(status_code=500, detail=f"Error syncing coins: {str(e)}")
+
+
+@router.put("/{coin_id}", response_model=schemas.Coin)
+async def update_coin(coin_id: int, coin_update: schemas.CoinUpdate, db: Session = Depends(get_db)):
+    """
+    Update a coin
+    """
+    db_coin = db.query(models.Coin).filter(models.Coin.id == coin_id).first()
+    if not db_coin:
+        raise HTTPException(status_code=404, detail="Coin not found")
+    
+    # Update coin attributes
+    update_data = coin_update.model_dump(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(db_coin, key, value)
+    
+    db.commit()
+    db.refresh(db_coin)
+    return db_coin
+
+
+@router.delete("/{coin_id}", response_model=schemas.Coin)
+async def delete_coin(coin_id: int, db: Session = Depends(get_db)):
+    """
+    Delete a coin
+    """
+    db_coin = db.query(models.Coin).filter(models.Coin.id == coin_id).first()
+    if not db_coin:
+        raise HTTPException(status_code=404, detail="Coin not found")
+    
+    db.delete(db_coin)
+    db.commit()
+    return db_coin 
