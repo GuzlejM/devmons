@@ -45,6 +45,14 @@ async def create_coin(coin: schemas.CoinCreate, db: Session = Depends(get_db)):
     """
     Create a new coin
     """
+    # Check if coin already exists
+    existing_coin = db.query(models.Coin).filter(models.Coin.coingecko_id == coin.coingecko_id).first()
+    if existing_coin:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Coin '{coin.name}' ({coin.symbol}) already exists in the system"
+        )
+    
     # Verify coin exists in CoinGecko
     try:
         coin_data = await coingecko.get_coin_price(coin.coingecko_id)
@@ -60,11 +68,18 @@ async def create_coin(coin: schemas.CoinCreate, db: Session = Depends(get_db)):
         )
     
     # Create the coin in the database
-    db_coin = models.Coin(**coin.model_dump())
-    db.add(db_coin)
-    db.commit()
-    db.refresh(db_coin)
-    return db_coin
+    try:
+        db_coin = models.Coin(**coin.model_dump())
+        db.add(db_coin)
+        db.commit()
+        db.refresh(db_coin)
+        return db_coin
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error creating coin: {str(e)}"
+        )
 
 
 @router.get("/sync/top", response_model=List[schemas.Coin])
@@ -128,6 +143,13 @@ async def delete_coin(coin_id: int, db: Session = Depends(get_db)):
     if not db_coin:
         raise HTTPException(status_code=404, detail="Coin not found")
     
-    db.delete(db_coin)
-    db.commit()
-    return db_coin 
+    try:
+        db.delete(db_coin)
+        db.commit()
+        return db_coin
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error deleting coin: {str(e)}"
+        ) 

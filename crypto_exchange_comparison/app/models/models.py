@@ -43,7 +43,7 @@ class Coin(Base):
     updated_at = Column(DateTime, default=utcnow, onupdate=utcnow)
     
     # Relationships
-    prices = relationship("Price", back_populates="coin")
+    prices = relationship("Price", back_populates="coin", cascade="all, delete-orphan")
     
     def __repr__(self):
         return f"<Coin {self.symbol}>"
