@@ -1,7 +1,13 @@
 import axios from 'axios';
 
-// Use environment variable or fallback to localhost
-const BASE_URL = import.meta.env.VITE_API_URL || '/api';
+// Inside Docker, the frontend container uses VITE_API_URL=http://api:8000
+// But browser requests from user's machine need to use localhost
+// We need to handle this difference for development mode
+const isDevelopment = import.meta.env.MODE === 'development';
+const browserBaseUrl = window.location.hostname === 'localhost' ? 'http://localhost:8000' : import.meta.env.VITE_API_URL;
+
+// Use proper base URL depending on context
+const BASE_URL = browserBaseUrl || 'http://localhost:8000';
 
 console.log('API base URL:', BASE_URL);
 
@@ -78,6 +84,17 @@ export interface ComparisonResult {
   best_for_large_orders: ExchangePrice | null;
 }
 
+export interface CoinGeckoListItem {
+  id: string;
+  symbol: string;
+  name: string;
+  has_market_data: boolean;
+  current_price?: number;
+  market_cap?: number;
+  image?: string;
+  price_change_24h?: number;
+}
+
 export const getExchanges = async (): Promise<Exchange[]> => {
   try {
     const response = await apiClient.get('/exchanges/');
@@ -145,6 +162,20 @@ export const getExchangeFees = async (exchangeId: number): Promise<any[]> => {
     return response.data;
   } catch (error) {
     console.error('Failed to get exchange fees:', error);
+    return [];
+  }
+};
+
+export const searchAvailableCoins = async (query: string): Promise<CoinGeckoListItem[]> => {
+  try {
+    if (!query || query.length < 2) return [];
+    
+    const response = await apiClient.get('/coins/search', {
+      params: { query }
+    });
+    return response.data || [];
+  } catch (error) {
+    console.error('Failed to search coins:', error);
     return [];
   }
 }; 

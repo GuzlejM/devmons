@@ -1,10 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from typing import List
 
 from app.database.connection import get_db
 from app.models import models, schemas
 from app.services import coingecko
+from app.services.cache import invalidate_cache
 
 router = APIRouter()
 
@@ -16,6 +17,91 @@ async def get_coins(skip: int = 0, limit: int = 100, db: Session = Depends(get_d
     """
     coins = db.query(models.Coin).offset(skip).limit(limit).all()
     return coins
+
+
+@router.get("/search", response_model=List[dict])
+async def search_available_coins(
+    query: str = Query(..., min_length=2), 
+    limit: int = 20, 
+    db: Session = Depends(get_db)
+):
+    """
+    Search for coins on CoinGecko that aren't already in the database
+    """
+    try:
+        # Get current coins in database
+        db_coins = db.query(models.Coin.coingecko_id).all()
+        existing_coin_ids = {coin.coingecko_id for coin in db_coins}
+        
+        # First get coins with market data (which have price information)
+        market_coins = await coingecko.get_coins_with_market_data(per_page=250)
+        
+        # Create a lookup for quick access
+        market_coins_by_id = {coin["id"]: coin for coin in market_coins}
+        
+        # Get the full list of coins for broader search
+        all_coins = await coingecko.get_coins()
+        
+        # Filter coins that match the query in id, name, or symbol
+        # and aren't already in the database
+        query = query.lower()
+        matching_coins = []
+        
+        for coin in all_coins:
+            # Skip if already in database
+            if coin["id"] in existing_coin_ids:
+                continue
+                
+            if (query in coin["id"].lower() or 
+                query in coin["symbol"].lower() or 
+                query in coin["name"].lower()):
+                
+                # Check if this coin has market data
+                market_data = market_coins_by_id.get(coin["id"])
+                
+                result = {
+                    "id": coin["id"],
+                    "symbol": coin["symbol"],
+                    "name": coin["name"],
+                    "has_market_data": market_data is not None
+                }
+                
+                # Add market data if available
+                if market_data:
+                    result.update({
+                        "current_price": market_data.get("current_price"),
+                        "market_cap": market_data.get("market_cap"),
+                        "image": market_data.get("image"),
+                        "price_change_24h": market_data.get("price_change_percentage_24h")
+                    })
+                
+                matching_coins.append(result)
+        
+        # Sort by best match and whether they have market data
+        def get_sort_key(coin):
+            # Has market data gets highest priority
+            has_market_data = 0 if coin.get("has_market_data") else 1
+            
+            # Exact matches get next priority
+            if coin["id"].lower() == query or coin["symbol"].lower() == query or coin["name"].lower() == query:
+                return (has_market_data, 0)
+                
+            # Starts with query gets next priority  
+            if coin["id"].lower().startswith(query) or coin["symbol"].lower().startswith(query) or coin["name"].lower().startswith(query):
+                return (has_market_data, 1)
+                
+            # Contains query gets lowest priority
+            return (has_market_data, 2)
+            
+        matching_coins.sort(key=get_sort_key)
+        
+        # Limit to top results
+        return matching_coins[:limit]
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error searching coins: {str(e)}"
+        )
 
 
 @router.get("/{coin_id}", response_model=schemas.Coin)

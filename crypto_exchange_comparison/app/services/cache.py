@@ -43,4 +43,10 @@ def clear_cache_pattern(pattern: str) -> None:
     Clear all cache keys matching pattern
     """
     for key in redis_client.scan_iter(f"{pattern}*"):
-        redis_client.delete(key) 
+        redis_client.delete(key)
+
+def invalidate_cache(key_pattern: str) -> None:
+    """
+    Invalidate cache for a specific key pattern
+    """
+    clear_cache_pattern(key_pattern) 

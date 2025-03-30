@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, watch, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useCoinsStore } from '../stores/coins'
 import LoadingSpinner from '../components/LoadingSpinner.vue'
+import { searchAvailableCoins, CoinGeckoListItem } from '../services/api'
 
 const router = useRouter()
 const coinsStore = useCoinsStore()
@@ -14,8 +15,79 @@ const form = ref({
   logo_url: ''
 })
 
+const searchQuery = ref('')
 const validationErrors = ref<Record<string, string>>({})
 const isSubmitting = ref(false)
+const searchResults = ref<CoinGeckoListItem[]>([])
+const isSearching = ref(false)
+const showSearchResults = ref(false)
+const searchTimeout = ref<number | null>(null)
+
+// Custom debounce function
+const debounceSearch = (fn: Function, delay: number) => {
+  return (...args: any[]) => {
+    if (searchTimeout.value) {
+      clearTimeout(searchTimeout.value)
+    }
+    searchTimeout.value = setTimeout(() => {
+      fn(...args)
+      searchTimeout.value = null
+    }, delay) as unknown as number
+  }
+}
+
+// Search logic
+const performSearch = async (query: string) => {
+  if (!query || query.length < 2) {
+    searchResults.value = []
+    showSearchResults.value = false
+    return
+  }
+  
+  isSearching.value = true
+  try {
+    searchResults.value = await searchAvailableCoins(query)
+    showSearchResults.value = searchResults.value.length > 0
+  } catch (error) {
+    console.error('Error searching coins:', error)
+    searchResults.value = []
+  } finally {
+    isSearching.value = false
+  }
+}
+
+const searchCoins = debounceSearch(performSearch, 300)
+
+watch(() => searchQuery.value, (newQuery) => {
+  searchCoins(newQuery)
+})
+
+const selectCoin = (coin: CoinGeckoListItem) => {
+  form.value.coingecko_id = coin.id
+  form.value.symbol = coin.symbol.toUpperCase()
+  form.value.name = coin.name
+  searchQuery.value = coin.name  // Update search query to reflect selected coin
+  
+  // If coin has an image from CoinGecko, use it as logo
+  if (coin.image) {
+    form.value.logo_url = coin.image
+  }
+  
+  showSearchResults.value = false
+}
+
+const handleInputFocus = () => {
+  if (searchResults.value.length > 0) {
+    showSearchResults.value = true
+  }
+}
+
+const handleInputBlur = () => {
+  // Delayed hide to allow clicking on results
+  setTimeout(() => {
+    showSearchResults.value = false
+  }, 200)
+}
 
 const validateForm = () => {
   const errors: Record<string, string> = {}
@@ -80,15 +152,78 @@ const goBack = () => {
       
       <div class="card p-6">
         <form @submit.prevent="handleSubmit">
+          <!-- Coin Search Field -->
+          <div class="mb-6 relative">
+            <label for="coin_search" class="block text-sm font-medium text-gray-700 mb-1">Add new Cryptocurrency</label>
+            <input
+              id="coin_search"
+              v-model="searchQuery"
+              type="text"
+              class="w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              placeholder="Search by name, symbol, or ID..."
+              @focus="handleInputFocus"
+              @blur="handleInputBlur"
+            />
+            
+            <!-- Search Results Dropdown -->
+            <div v-if="showSearchResults" class="absolute z-10 w-full mt-1 bg-white rounded-md shadow-lg max-h-80 overflow-auto">
+              <div v-if="isSearching" class="p-2 text-center text-gray-500">
+                <LoadingSpinner class="w-4 h-4 mx-auto" />
+                <span class="text-sm">Searching...</span>
+              </div>
+              <ul v-else class="py-1">
+                <li 
+                  v-for="coin in searchResults" 
+                  :key="coin.id" 
+                  @mousedown="selectCoin(coin)"
+                  class="px-4 py-2 hover:bg-gray-100 cursor-pointer border-b last:border-b-0"
+                  :class="{'bg-green-50': coin.has_market_data}"
+                >
+                  <div class="flex items-center gap-2">
+                    <img v-if="coin.image" :src="coin.image" alt="coin logo" class="w-6 h-6 rounded-full" />
+                    <div class="flex-1">
+                      <div class="flex items-center justify-between">
+                        <span class="text-gray-800 font-medium">{{ coin.name }}</span>
+                        <span v-if="coin.current_price" class="text-gray-700 text-sm font-medium">
+                          ${{ coin.current_price.toLocaleString() }}
+                        </span>
+                      </div>
+                      <div class="flex justify-between items-center">
+                        <div class="text-xs text-gray-500 flex items-center gap-1">
+                          <span class="uppercase font-medium">{{ coin.symbol }}</span>
+                          <span class="text-xs text-gray-400">({{ coin.id }})</span>
+                        </div>
+                        <div v-if="coin.price_change_24h" class="text-xs" :class="coin.price_change_24h >= 0 ? 'text-green-600' : 'text-red-600'">
+                          {{ coin.price_change_24h >= 0 ? '+' : '' }}{{ coin.price_change_24h.toFixed(2) }}%
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div v-if="!coin.has_market_data" class="text-xs text-amber-600 mt-1 font-medium">
+                    Note: This coin doesn't have price data on CoinGecko
+                  </div>
+                </li>
+              </ul>
+              <div v-if="searchResults.length === 0 && !isSearching && searchQuery.length >= 2" class="p-2 text-center text-gray-500">
+                No coins found matching your search
+              </div>
+            </div>
+            
+            <p class="mt-1 text-sm text-gray-500">
+              Search and select a cryptocurrency that's not already in your app
+            </p>
+          </div>
+          
           <div class="mb-6">
             <label for="coingecko_id" class="block text-sm font-medium text-gray-700 mb-1">CoinGecko ID</label>
             <input
               id="coingecko_id"
               v-model="form.coingecko_id"
               type="text"
-              class="w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              class="w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-gray-50"
               placeholder="e.g. bitcoin"
               :class="{'border-red-500': validationErrors.coingecko_id}"
+              readonly
             />
             <p v-if="validationErrors.coingecko_id" class="mt-1 text-sm text-red-600">
               {{ validationErrors.coingecko_id }}
@@ -165,4 +300,8 @@ const goBack = () => {
       </div>
     </div>
   </div>
-</template> 
+</template>
+
+<style scoped>
+/* Add any additional styles here if needed */
+</style> 

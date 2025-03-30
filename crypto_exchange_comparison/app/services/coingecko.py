@@ -140,4 +140,32 @@ async def get_coin_tickers(coin_id: str) -> Dict[str, Any]:
     # Cache the result
     set_cache(cache_key, result, 300)  # Cache for 5 minutes
     
+    return result
+
+
+async def get_coins_with_market_data(vs_currency: str = "usd", per_page: int = 250, page: int = 1) -> List[Dict[str, Any]]:
+    """
+    Get list of coins with market data from CoinGecko API with cache
+    
+    This provides coins with actual price data, market cap, etc.
+    """
+    cache_key = f"{CACHE_PREFIX}:markets:{vs_currency}:{per_page}:{page}"
+    cached_data = get_cache(cache_key)
+    
+    if cached_data:
+        return cached_data
+    
+    params = {
+        "vs_currency": vs_currency,
+        "per_page": per_page,
+        "page": page,
+        "sparkline": "false",
+        "price_change_percentage": "24h"
+    }
+    
+    result = await make_api_request(f"{COINGECKO_API_URL}/coins/markets", params)
+    
+    # Cache the result
+    set_cache(cache_key, result, 300)  # Cache for 5 minutes (more frequent updates for price data)
+    
     return result 
