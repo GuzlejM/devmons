@@ -6,6 +6,7 @@ from app.database.connection import get_db
 from app.api import exchanges, coins, compare
 from app.database.init_db import init_db
 from app.tasks import scheduler, cleanup
+from app.services.db import price_service
 
 app = FastAPI(
     title="Crypto Exchange Comparison API",
@@ -28,30 +29,41 @@ app.include_router(coins.router, prefix="/coins", tags=["coins"])
 app.include_router(compare.router, prefix="/compare", tags=["compare"])
 app.include_router(cleanup.router, prefix="/maintenance", tags=["maintenance"])
 
-# Add new router for data updates
 @app.get("/update", tags=["maintenance"])
 async def trigger_updates(background_tasks: BackgroundTasks):
     """
-    Manually trigger data updates in the background
+    Manually trigger data updates in the background.
+    
+    Returns:
+        Status message
     """
     return scheduler.schedule_updates(background_tasks)
 
 @app.get("/update/status", tags=["maintenance"])
 async def update_status():
     """
-    Get the status of the last data updates
+    Get the status of the last data updates.
+    
+    Returns:
+        Dictionary with last update times for each data type
     """
     return scheduler.get_last_update_times()
 
-@app.on_event("startup")
-async def startup_event():
-    """Initialize database and schedule updates on startup"""
+async def startup_tasks():
+    """
+    Initialize the application on startup:
+    - Initialize database tables
+    - Clean up any duplicate data
+    - Schedule initial data updates
+    """
+    # Get database session
+    db = next(get_db())
+    
     # Initialize database
     init_db()
     print("Database tables initialized at startup")
     
     # Clean up any duplicate prices in the database
-    db = next(get_db())
     from app.tasks.cleanup import cleanup_duplicate_prices
     cleanup_result = await cleanup_duplicate_prices(db)
     print(f"Cleaned up database duplicates: {cleanup_result}")
@@ -61,23 +73,22 @@ async def startup_event():
     scheduler.schedule_updates(background_tasks)
     print("Initial data update scheduled")
     
-    # Start a background task to periodically update data every 4 hours
-    asyncio.create_task(periodic_updates())
+    # Start a background task to periodically update data
+    asyncio.create_task(scheduler.periodic_updates())
 
-async def periodic_updates():
+@app.on_event("startup")
+async def startup_event():
     """
-    Run updates periodically in the background
+    Startup event handler for the FastAPI application.
     """
-    while True:
-        # Sleep for 4 hours
-        await asyncio.sleep(4 * 60 * 60)  
-        
-        # Create new background tasks
-        background_tasks = BackgroundTasks()
-        scheduler.schedule_updates(background_tasks)
-        print("Scheduled periodic data update")
+    await startup_tasks()
 
 @app.get("/", tags=["health"])
 async def health_check():
-    """Health check endpoint"""
+    """
+    Health check endpoint.
+    
+    Returns:
+        Status message
+    """
     return {"status": "ok", "message": "API is running"}
