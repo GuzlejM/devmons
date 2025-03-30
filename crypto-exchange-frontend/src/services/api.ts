@@ -107,13 +107,33 @@ export const getExchanges = async (): Promise<Exchange[]> => {
 
 export const getCoins = async (): Promise<Coin[]> => {
   try {
-    console.log('Calling getCoins API');
+    console.log('Calling getCoins API endpoint...');
     const response = await apiClient.get('/coins/');
-    console.log('Coins API response:', response.data);
-    return response.data;
+    
+    if (!response.data || !Array.isArray(response.data)) {
+      console.error('Invalid coins response format:', response.data);
+      return [];
+    }
+    
+    console.log(`Coins API response: received ${response.data.length} coins`);
+    
+    // Validate the data structure
+    const validCoins = response.data.filter(coin => {
+      const isValid = coin && typeof coin === 'object' && 'id' in coin && 'name' in coin && 'coingecko_id' in coin;
+      if (!isValid) {
+        console.warn('Found invalid coin in response:', coin);
+      }
+      return isValid;
+    });
+    
+    if (validCoins.length !== response.data.length) {
+      console.warn(`Filtered out ${response.data.length - validCoins.length} invalid coins`);
+    }
+    
+    return validCoins;
   } catch (error) {
     console.error('Failed to get coins:', error);
-    return [];
+    throw error; // Re-throw to allow the store to handle it
   }
 };
 
@@ -177,5 +197,23 @@ export const searchAvailableCoins = async (query: string): Promise<CoinGeckoList
   } catch (error) {
     console.error('Failed to search coins:', error);
     return [];
+  }
+};
+
+export const getCoinById = async (coinId: number): Promise<Coin | null> => {
+  try {
+    console.log(`Fetching coin with ID: ${coinId}`);
+    const response = await apiClient.get(`/coins/${coinId}`);
+    
+    if (!response.data || typeof response.data !== 'object') {
+      console.error('Invalid coin response format:', response.data);
+      return null;
+    }
+    
+    console.log('Coin retrieved:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error(`Failed to get coin with ID ${coinId}:`, error);
+    return null;
   }
 }; 

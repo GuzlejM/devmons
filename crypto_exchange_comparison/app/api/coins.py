@@ -11,7 +11,7 @@ router = APIRouter()
 
 
 @router.get("/", response_model=List[schemas.Coin])
-async def get_coins(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+async def get_coins(skip: int = 0, limit: int = 1000, db: Session = Depends(get_db)):
     """
     Get all coins
     """

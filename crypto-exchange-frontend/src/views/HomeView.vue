@@ -3,6 +3,7 @@ import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useToast } from 'vue-toastification'
 import { useCoinsStore } from '../stores/coins'
+import { getCoinById } from '../services/api'
 import LoadingSpinner from '../components/LoadingSpinner.vue'
 import Pagination from '../components/Pagination.vue'
 
@@ -11,6 +12,7 @@ const toast = useToast()
 const coinsStore = useCoinsStore()
 const showDeleteModal = ref(false)
 const coinToDelete = ref<{ id: number, name: string } | null>(null)
+const directCoinId = ref('')
 
 const handleCoinSelect = (coinId: string) => {
   router.push({ name: 'compare', params: { id: coinId } })
@@ -43,8 +45,52 @@ const deleteCoin = async () => {
   }
 }
 
+const searchById = async () => {
+  if (!directCoinId.value) {
+    toast.warning('Please enter a coin ID')
+    return
+  }
+
+  const id = parseInt(directCoinId.value)
+  if (isNaN(id)) {
+    toast.error('Invalid ID format')
+    return
+  }
+
+  try {
+    // First check if the coin is already in our local store
+    const localCoin = coinsStore.coins.find(c => c.id === id)
+    if (localCoin) {
+      toast.info(`Found coin: ${localCoin.name} (${localCoin.symbol})`)
+      handleCoinSelect(localCoin.coingecko_id)
+      return
+    }
+
+    // If not found locally, try to fetch it from the API
+    const coin = await getCoinById(id)
+    if (coin) {
+      toast.success(`Retrieved coin: ${coin.name} (${coin.symbol})`)
+      // Refresh coins to include this one
+      await coinsStore.fetchCoins()
+      handleCoinSelect(coin.coingecko_id)
+    } else {
+      toast.error(`No coin found with ID ${id}`)
+    }
+  } catch (error) {
+    console.error('Error searching for coin by ID:', error)
+    toast.error('Failed to find coin')
+  }
+}
+
 onMounted(async () => {
-  await coinsStore.fetchCoins()
+  try {
+    console.log('HomeView mounted - fetching coins...');
+    await coinsStore.fetchCoins();
+    console.log('Coins loaded successfully in HomeView');
+  } catch (error) {
+    console.error('Error loading coins in HomeView:', error);
+    toast.error('There was a problem loading your coins. Please refresh the page.');
+  }
 })
 </script>
 
@@ -95,6 +141,29 @@ onMounted(async () => {
     </div>
     
     <div v-else class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+      <!-- Stats summary -->
+      <div class="col-span-full mb-6">
+        <div class="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-4 shadow-sm">
+          <div class="flex flex-wrap justify-between items-center">
+            <div class="flex items-center">
+              <div class="h-10 w-10 bg-blue-100 rounded-full flex items-center justify-center mr-3">
+                <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                </svg>
+              </div>
+              <div>
+                <h4 class="text-sm font-medium text-gray-500">Total Cryptocurrencies</h4>
+                <p class="text-xl font-bold text-gray-800">{{ coinsStore.coins.length }}</p>
+              </div>
+            </div>
+            
+            <div v-if="coinsStore.totalPages > 1" class="flex items-center text-sm text-gray-500">
+              <span class="mr-2">Displaying {{ coinsStore.paginatedCoins.length }} coins per page</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      
       <div 
         v-for="coin in coinsStore.paginatedCoins" 
         :key="coin.id" 

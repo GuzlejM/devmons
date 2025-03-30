@@ -23,6 +23,9 @@ const isSearching = ref(false)
 const showSearchResults = ref(false)
 const searchTimeout = ref<number | null>(null)
 
+// Create a flag to track when we're updating the search query programmatically
+const isInternalUpdate = ref(false)
+
 // Custom debounce function
 const debounceSearch = (fn: Function, delay: number) => {
   return (...args: any[]) => {
@@ -38,6 +41,9 @@ const debounceSearch = (fn: Function, delay: number) => {
 
 // Search logic
 const performSearch = async (query: string) => {
+  // Don't search when the query is being updated internally
+  if (isInternalUpdate.value) return
+  
   if (!query || query.length < 2) {
     searchResults.value = []
     showSearchResults.value = false
@@ -59,14 +65,25 @@ const performSearch = async (query: string) => {
 const searchCoins = debounceSearch(performSearch, 300)
 
 watch(() => searchQuery.value, (newQuery) => {
-  searchCoins(newQuery)
+  // Only trigger search if not being updated internally
+  if (!isInternalUpdate.value) {
+    searchCoins(newQuery)
+  }
 })
 
 const selectCoin = (coin: CoinGeckoListItem) => {
   form.value.coingecko_id = coin.id
   form.value.symbol = coin.symbol.toUpperCase()
   form.value.name = coin.name
-  searchQuery.value = coin.name  // Update search query to reflect selected coin
+  
+  // Set flag before updating search query
+  isInternalUpdate.value = true
+  searchQuery.value = coin.name
+  
+  // Reset flag after a short delay
+  setTimeout(() => {
+    isInternalUpdate.value = false
+  }, 100)
   
   // If coin has an image from CoinGecko, use it as logo
   if (coin.image) {
@@ -77,7 +94,9 @@ const selectCoin = (coin: CoinGeckoListItem) => {
 }
 
 const handleInputFocus = () => {
-  if (searchResults.value.length > 0) {
+  // Only show results if we're not in the middle of a selection
+  // and there are actual results to show
+  if (!isInternalUpdate.value && searchResults.value.length > 0) {
     showSearchResults.value = true
   }
 }

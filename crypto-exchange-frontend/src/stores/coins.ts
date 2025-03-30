@@ -13,7 +13,7 @@ export const useCoinsStore = defineStore('coins', () => {
   const selectedCoin = ref<string | null>(null)
   const searchQuery = ref('')
   const currentPage = ref(1)
-  const itemsPerPage = ref(12)
+  const itemsPerPage = ref(24)
   
   // Getters
   const filteredCoins = computed(() => {
@@ -39,11 +39,20 @@ export const useCoinsStore = defineStore('coins', () => {
     error.value = null
     
     try {
-      coins.value = await getCoins()
+      console.log('Fetching coins from API...')
+      const fetchedCoins = await getCoins()
+      console.log('Coins fetched successfully:', fetchedCoins.length, 'coins')
+      
+      if (Array.isArray(fetchedCoins)) {
+        coins.value = fetchedCoins
+      } else {
+        console.error('Invalid coins data format:', fetchedCoins)
+        throw new Error('Invalid response format')
+      }
     } catch (err) {
       console.error('Error fetching coins:', err)
       error.value = 'Failed to load coins'
-      toast.error('Failed to load coins')
+      toast.error('Failed to load coins. Please try refreshing the page.')
     } finally {
       loading.value = false
     }
@@ -67,8 +76,13 @@ export const useCoinsStore = defineStore('coins', () => {
     error.value = null
     
     try {
+      console.log('Adding new coin:', coin)
       const newCoin = await createCoin(coin)
-      coins.value.push(newCoin)
+      console.log('New coin added successfully:', newCoin)
+      
+      // Make sure we have the latest list of coins including the new one
+      await fetchCoins()
+      
       toast.success(`Added ${newCoin.name} successfully!`)
       return newCoin
     } catch (err: any) {
