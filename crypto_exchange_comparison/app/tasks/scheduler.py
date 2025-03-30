@@ -163,6 +163,10 @@ async def update_prices_task(db: Session):
                     if not exchange:
                         continue
                     
+                    # Get raw values from the data
+                    bid_price = data["bid"]
+                    ask_price = data["ask"]
+                    
                     # Update or create price record
                     price = db.query(models.Price).filter(
                         models.Price.exchange_id == exchange.id,
@@ -173,8 +177,8 @@ async def update_prices_task(db: Session):
                         # Update existing price
                         price.price_usd = data["price"]
                         price.volume_24h = data["volume"]
-                        price.bid_price = data["bid"]
-                        price.ask_price = data["ask"]
+                        price.bid_price = bid_price
+                        price.ask_price = ask_price
                         price.last_updated = datetime.now(timezone.utc)
                     else:
                         # Create new price record
@@ -183,8 +187,8 @@ async def update_prices_task(db: Session):
                             coin_id=coin.id,
                             price_usd=data["price"],
                             volume_24h=data["volume"],
-                            bid_price=data["bid"],
-                            ask_price=data["ask"]
+                            bid_price=bid_price,
+                            ask_price=ask_price
                         )
                         db.add(price)
                     
