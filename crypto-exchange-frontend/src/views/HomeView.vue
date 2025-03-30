@@ -189,28 +189,24 @@ const selectCoinToAdd = (coin: CoinGeckoListItem) => {
 }
 
 const addCoinDirectly = (coin: CoinGeckoListItem) => {
-  // Add the coin directly without duplicate toast
-  isSubmitting.value = true
+  // Prevent default behavior that might cause page shifts
+  if (!coin) return;
   
+  // Immediately hide dropdown and clear search
+  showSearchResults.value = false;
+  searchQuery.value = '';
+  isSubmitting.value = true;
+  
+  // No need for loading indicators, rely on the store's handling
   coinsStore.addNewCoin({
     coingecko_id: coin.id,
     symbol: coin.symbol.toUpperCase(),
     name: coin.name,
     logo_url: coin.image || ''
   })
-  .then(() => {
-    // Don't show toast here - the store already shows one
-    searchQuery.value = ''
-    searchResults.value = []
-    showSearchResults.value = false
-  })
-  .catch((error) => {
-    console.error('Error adding coin:', error)
-    // Error toast is already shown by the store
-  })
   .finally(() => {
-    isSubmitting.value = false
-  })
+    isSubmitting.value = false;
+  });
 }
 
 const handleSearchInput = (e: Event) => {
@@ -249,9 +245,14 @@ watch(showAddCoinSearch, async (isOpen) => {
 
 onMounted(async () => {
   try {
-    console.log('HomeView mounted - fetching coins...');
-    await coinsStore.fetchCoins();
-    console.log('Coins loaded successfully in HomeView');
+    // Only fetch coins if they haven't been loaded yet
+    if (coinsStore.coins.length === 0) {
+      console.log('HomeView mounted - fetching coins...');
+      await coinsStore.fetchCoins();
+      console.log('Coins loaded successfully in HomeView');
+    } else {
+      console.log('Coins already loaded, skipping fetch');
+    }
   } catch (error) {
     console.error('Error loading coins in HomeView:', error);
     toast.error('There was a problem loading your coins. Please refresh the page.');
@@ -286,7 +287,8 @@ onMounted(async () => {
       </div>
     </div>
     
-    <div v-if="coinsStore.loading" class="flex justify-center items-center py-16">
+    <!-- Only show loading spinner on initial load, not when adding coins -->
+    <div v-if="coinsStore.loading && coinsStore.coins.length === 0" class="flex justify-center items-center py-16">
       <LoadingSpinner />
     </div>
     
