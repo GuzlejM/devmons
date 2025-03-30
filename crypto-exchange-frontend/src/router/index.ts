@@ -10,11 +10,6 @@ const router = createRouter({
       component: HomeView
     },
     {
-      path: '/add-coin',
-      name: 'add-coin',
-      component: () => import('../views/AddCoinView.vue')
-    },
-    {
       path: '/compare/:id',
       name: 'compare',
       component: () => import('../views/CompareView.vue'),

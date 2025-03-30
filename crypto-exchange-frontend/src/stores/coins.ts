@@ -71,25 +71,25 @@ export const useCoinsStore = defineStore('coins', () => {
     currentPage.value = page
   }
   
-  const addNewCoin = async (coin: { coingecko_id: string, symbol: string, name: string, logo_url?: string }) => {
+  const addNewCoin = async (coin: { coingecko_id: string, symbol: string, name: string, logo_url: string }) => {
     loading.value = true
     error.value = null
     
     try {
-      console.log('Adding new coin:', coin)
-      const newCoin = await createCoin(coin)
-      console.log('New coin added successfully:', newCoin)
+      const response = await createCoin(coin)
+      console.log('Coin added successfully:', response)
       
-      // Make sure we have the latest list of coins including the new one
-      await fetchCoins()
-      
-      toast.success(`Added ${newCoin.name} successfully!`)
-      return newCoin
-    } catch (err: any) {
+      // Instead of refreshing all coins, just add this one to our local store
+      if (response && response.id) {
+        coins.value.push(response)
+        toast.success(`${coin.name} added successfully`)
+      } else {
+        throw new Error('Invalid response format')
+      }
+    } catch (err) {
       console.error('Error adding coin:', err)
-      const errorMessage = err.response?.data?.detail || 'Failed to add coin'
-      error.value = errorMessage
-      toast.error(errorMessage)
+      error.value = 'Failed to add coin'
+      toast.error('Failed to add coin. Please try again.')
       throw err
     } finally {
       loading.value = false

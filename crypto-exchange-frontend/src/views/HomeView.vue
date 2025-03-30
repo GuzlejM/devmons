@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useToast } from 'vue-toastification'
 import { useCoinsStore } from '../stores/coins'
-import { getCoinById } from '../services/api'
+import { getCoinById, searchAvailableCoins, CoinGeckoListItem } from '../services/api'
 import LoadingSpinner from '../components/LoadingSpinner.vue'
 import Pagination from '../components/Pagination.vue'
 
@@ -13,13 +13,24 @@ const coinsStore = useCoinsStore()
 const showDeleteModal = ref(false)
 const coinToDelete = ref<{ id: number, name: string } | null>(null)
 const directCoinId = ref('')
+const showAddCoinModal = ref(false)
+const showAddCoinSearch = ref(false)
+const searchQuery = ref('')
+const showSearchResults = ref(false)
+const isSearching = ref(false)
+const searchResults = ref<CoinGeckoListItem[]>([])
+const form = ref({
+  coingecko_id: '',
+  symbol: '',
+  name: '',
+  logo_url: '',
+})
+const validationErrors = ref<Record<string, string>>({})
+const isSubmitting = ref(false)
+const isAddMode = ref(false)
 
 const handleCoinSelect = (coinId: string) => {
   router.push({ name: 'compare', params: { id: coinId } })
-}
-
-const handleAddCoin = () => {
-  router.push({ name: 'add-coin' })
 }
 
 const confirmDelete = (e: Event, coin: { id: number, name: string }) => {
@@ -82,6 +93,160 @@ const searchById = async () => {
   }
 }
 
+const handleInputFocus = () => {
+  if (searchResults.value.length > 0) {
+    showSearchResults.value = true
+  }
+}
+
+const handleInputBlur = () => {
+  // Delayed hide to allow clicking on results
+  setTimeout(() => {
+    showSearchResults.value = false
+  }, 200)
+}
+
+const searchCoins = async (query: string) => {
+  if (!query || query.length < 2) {
+    searchResults.value = []
+    showSearchResults.value = false
+    return
+  }
+  
+  isSearching.value = true
+  try {
+    searchResults.value = await searchAvailableCoins(query)
+    showSearchResults.value = searchResults.value.length > 0
+  } catch (error) {
+    console.error('Error searching coins:', error)
+    searchResults.value = []
+  } finally {
+    isSearching.value = false
+  }
+}
+
+// Watch search query changes
+watch(searchQuery, async (newQuery) => {
+  if (newQuery.length >= 2) {
+    await searchCoins(newQuery)
+  } else {
+    searchResults.value = []
+    showSearchResults.value = false
+  }
+})
+
+const selectCoin = (coin: any) => {
+  form.value.coingecko_id = coin.id
+  form.value.symbol = coin.symbol
+  form.value.name = coin.name
+  form.value.logo_url = coin.image
+  showAddCoinModal.value = false
+}
+
+const handleSubmit = async () => {
+  isSubmitting.value = true
+  try {
+    const newCoin = {
+      coingecko_id: form.value.coingecko_id,
+      symbol: form.value.symbol.toUpperCase(),
+      name: form.value.name,
+      logo_url: form.value.logo_url,
+    }
+    await coinsStore.addNewCoin(newCoin)
+    showAddCoinModal.value = false
+    form.value = {
+      coingecko_id: '',
+      symbol: '',
+      name: '',
+      logo_url: '',
+    }
+    toast.success('Cryptocurrency added successfully')
+  } catch (error) {
+    console.error('Error adding cryptocurrency:', error)
+    toast.error('Failed to add cryptocurrency')
+  } finally {
+    isSubmitting.value = false
+  }
+}
+
+const toggleSearchMode = () => {
+  isAddMode.value = !isAddMode.value
+  if (isAddMode.value) {
+    searchQuery.value = ''
+    searchResults.value = []
+    showSearchResults.value = false
+  }
+}
+
+const selectCoinToAdd = (coin: CoinGeckoListItem) => {
+  form.value.coingecko_id = coin.id
+  form.value.symbol = coin.symbol.toUpperCase()
+  form.value.name = coin.name
+  form.value.logo_url = coin.image || ''
+  
+  // Use the direct method instead
+  addCoinDirectly(coin)
+}
+
+const addCoinDirectly = (coin: CoinGeckoListItem) => {
+  // Add the coin directly without duplicate toast
+  isSubmitting.value = true
+  
+  coinsStore.addNewCoin({
+    coingecko_id: coin.id,
+    symbol: coin.symbol.toUpperCase(),
+    name: coin.name,
+    logo_url: coin.image || ''
+  })
+  .then(() => {
+    // Don't show toast here - the store already shows one
+    searchQuery.value = ''
+    searchResults.value = []
+    showSearchResults.value = false
+  })
+  .catch((error) => {
+    console.error('Error adding coin:', error)
+    // Error toast is already shown by the store
+  })
+  .finally(() => {
+    isSubmitting.value = false
+  })
+}
+
+const handleSearchInput = (e: Event) => {
+  const target = e.target as HTMLInputElement
+  
+  if (isAddMode.value) {
+    searchQuery.value = target.value
+    // The watcher for searchQuery will handle the API search
+  } else {
+    coinsStore.setSearchQuery(target.value)
+  }
+}
+
+// Watch for search panel open to initialize search
+watch(showAddCoinSearch, async (isOpen) => {
+  if (isOpen) {
+    // Reset the search
+    searchQuery.value = ''
+    // Load top 20 coins when search is opened
+    try {
+      isSearching.value = true
+      searchResults.value = await searchAvailableCoins('') // Empty query gets top coins
+      isSearching.value = false
+      // Auto-focus the search input after UI updates
+      setTimeout(() => {
+        const searchInput = document.querySelector('.coin-search-input') as HTMLInputElement
+        if (searchInput) searchInput.focus()
+      }, 100)
+    } catch (error) {
+      console.error('Error fetching initial coins:', error)
+      searchResults.value = []
+      isSearching.value = false
+    }
+  }
+})
+
 onMounted(async () => {
   try {
     console.log('HomeView mounted - fetching coins...');
@@ -101,26 +266,23 @@ onMounted(async () => {
       
       <div class="flex flex-col sm:flex-row items-start sm:items-center gap-4">
         <div class="relative w-full md:w-64">
-          <input
-            type="text"
-            placeholder="Search cryptocurrencies..."
-            v-model="coinsStore.searchQuery"
-            @input="e => coinsStore.setSearchQuery((e.target as HTMLInputElement).value)"
-            class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-          />
-          <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <svg class="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
+          <div class="flex items-center">
+            <div class="relative flex-1">
+              <input
+                type="text"
+                placeholder="Filter your coins..."
+                :value="coinsStore.searchQuery"
+                @input="(e) => coinsStore.setSearchQuery((e.target as HTMLInputElement).value)"
+                class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              />
+              <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <svg class="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              </div>
+            </div>
           </div>
         </div>
-        
-        <button @click="handleAddCoin" class="btn">
-          <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-          </svg>
-          Add Coin
-        </button>
       </div>
     </div>
     
@@ -137,12 +299,12 @@ onMounted(async () => {
       <p class="text-gray-500 mt-2">
         {{ coinsStore.searchQuery ? 'Try a different search term' : 'Add some cryptocurrencies to get started' }}
       </p>
-      <button @click="handleAddCoin" class="btn mt-4">Add Coin</button>
+      <button @click="isAddMode = true" class="btn mt-4">Add Coin</button>
     </div>
     
     <div v-else class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-      <!-- Stats summary -->
-      <div class="col-span-full mb-6">
+      <!-- Stats summary with Add Coin button -->
+      <div class="col-span-full mb-4">
         <div class="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-4 shadow-sm">
           <div class="flex flex-wrap justify-between items-center">
             <div class="flex items-center">
@@ -157,8 +319,106 @@ onMounted(async () => {
               </div>
             </div>
             
-            <div v-if="coinsStore.totalPages > 1" class="flex items-center text-sm text-gray-500">
-              <span class="mr-2">Displaying {{ coinsStore.paginatedCoins.length }} coins per page</span>
+            <div class="flex items-center gap-3">
+              <div v-if="coinsStore.totalPages > 1" class="text-sm text-gray-500">
+                <span>{{ coinsStore.paginatedCoins.length }} coins per page</span>
+              </div>
+              
+              <button 
+                @click="showAddCoinSearch = !showAddCoinSearch" 
+                class="flex items-center px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg shadow-sm transition-colors"
+              >
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path :d="showAddCoinSearch ? 'M6 18L18 6M6 6l12 12' : 'M12 4v16m8-8H4'" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" />
+                </svg>
+                {{ showAddCoinSearch ? 'Close Search' : 'Add New Cryptocurrency' }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Expandable Add Coin Search Panel -->
+      <div v-if="showAddCoinSearch" class="col-span-full mb-6 animate-fade-in">
+        <div class="bg-white rounded-lg shadow-md p-4 border border-gray-200">
+          <div class="mb-4">
+            <div class="flex items-center mb-2">
+              <svg class="w-5 h-5 text-gray-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              <h3 class="text-lg font-medium text-gray-700">Add new Cryptocurrency</h3>
+            </div>
+            
+            <div class="relative">
+              <input
+                v-model="searchQuery"
+                type="text"
+                class="w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent coin-search-input"
+                placeholder="Search by name, symbol, or ID..."
+                autocomplete="off"
+                @focus="showSearchResults = true"
+                @blur="handleInputBlur"
+              />
+              
+              <!-- Search Results Dropdown - Position absolute to overlay content -->
+              <div v-if="searchResults.length > 0 && showSearchResults" class="absolute left-0 right-0 mt-1 bg-white rounded-lg shadow-lg z-50 border border-gray-200 max-h-80 overflow-y-auto">
+                <div v-if="isSearching" class="p-4 space-y-3">
+                  <!-- Skeleton loaders while searching -->
+                  <div v-for="i in 3" :key="i" class="flex items-start animate-pulse">
+                    <div class="w-8 h-8 bg-gray-200 rounded-full mr-3 mt-1"></div>
+                    <div class="flex-grow">
+                      <div class="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
+                      <div class="h-3 bg-gray-200 rounded w-1/2"></div>
+                    </div>
+                  </div>
+                </div>
+                <div 
+                  v-else
+                  v-for="coin in searchResults" 
+                  :key="coin.id" 
+                  class="p-3 border-b last:border-b-0 hover:bg-gray-50 cursor-pointer"
+                  :class="{'bg-green-50': coin.has_market_data, 'bg-gray-50': !coin.has_market_data}"
+                  @mousedown="addCoinDirectly(coin)"
+                >
+                  <div class="flex items-start">
+                    <img v-if="coin.image" :src="coin.image" alt="coin logo" class="w-8 h-8 rounded-full mr-3 mt-1" />
+                    <div v-else class="w-8 h-8 bg-gray-200 rounded-full mr-3 mt-1 flex items-center justify-center">
+                      <span class="text-xs font-bold text-gray-500">{{ coin.symbol.charAt(0) }}</span>
+                    </div>
+                    
+                    <div class="flex-grow">
+                      <div class="flex justify-between">
+                        <div class="font-medium text-gray-900 truncate max-w-[150px]" :title="coin.name">{{ coin.name }}</div>
+                      </div>
+                      
+                      <div class="flex justify-between items-center">
+                        <div class="text-xs text-gray-500 uppercase">{{ coin.symbol }}</div>
+                        <div v-if="coin.current_price" class="text-xs font-medium text-gray-700">
+                          ${{ coin.current_price.toLocaleString() }}
+                        </div>
+                      </div>
+                      
+                      <div v-if="!coin.has_market_data" class="text-xs text-amber-600 mt-1">
+                        No price data
+                      </div>
+                      
+                      <div v-else-if="coin.price_change_24h" class="text-xs mt-1" :class="coin.price_change_24h >= 0 ? 'text-green-600' : 'text-red-600'">
+                        {{ coin.price_change_24h >= 0 ? '↑' : '↓' }} {{ Math.abs(coin.price_change_24h).toFixed(2) }}% (24h)
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Search status -->
+            <div v-if="isSearching" class="mt-2 flex items-center justify-center text-gray-500">
+              <LoadingSpinner class="w-4 h-4 mr-2" />
+              <span class="text-sm">Searching for cryptocurrencies...</span>
+            </div>
+            
+            <div v-if="searchResults.length === 0 && !isSearching && searchQuery.length >= 2" class="mt-3 text-center text-gray-500">
+              No coins found matching your search
             </div>
           </div>
         </div>

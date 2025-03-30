@@ -24,15 +24,6 @@
                 Home
               </router-link>
             </li>
-            <li>
-              <router-link 
-                to="/add-coin" 
-                class="text-white hover:text-primary-100 transition-colors"
-                active-class="font-bold"
-              >
-                Add Coin
-              </router-link>
-            </li>
           </ul>
         </nav>
       </div>
