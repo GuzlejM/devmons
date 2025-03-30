@@ -106,7 +106,7 @@ const handleCompareExchanges = (exchangesToCompare: string[]) => {
             </div>
             
             <div v-if="comparisonData.best_for_large_orders" class="card p-6 bg-blue-50 border border-blue-100">
-              <h3 class="text-lg font-bold text-gray-900 mb-3">Best for Large Orders</h3>
+              <h3 class="text-lg font-bold text-gray-900 mb-3">Highest Volume</h3>
               <div class="flex items-center mb-3">
                 <div class="bg-blue-100 text-blue-800 font-semibold rounded-full px-3 py-1 text-sm mr-2">
                   {{ comparisonData.best_for_large_orders.exchange_name }}

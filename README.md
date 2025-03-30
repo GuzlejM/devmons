@@ -62,7 +62,33 @@ DevMons is a comprehensive cryptocurrency exchange comparison platform designed 
    - Frontend: http://localhost
    - API Documentation: http://localhost:8000/docs
 
-### Development Setup
+### Development with Hot Reload
+
+For active development with hot-reload on both frontend and backend:
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/GuzlejM/devmons.git
+   cd devmons
+   ```
+
+2. Start the development environment with hot-reload:
+   ```bash
+   docker-compose -f docker-compose.dev.yml up -d
+   ```
+
+3. Access development endpoints:
+   - Frontend: http://localhost:5173 (with hot-reload)
+   - Backend API: http://localhost:8000 (with hot-reload)
+   - API Documentation: http://localhost:8000/docs
+
+This setup automatically detects changes in both frontend and backend code, rebuilding and refreshing as needed:
+- Frontend: Any changes to Vue components, styles, or assets are instantly reflected
+- Backend: Changes to Python code will trigger automatic server restart
+
+### Standard Development Setup
+
+If you prefer a more traditional development workflow:
 
 1. Clone the repository:
    ```bash
@@ -135,31 +161,33 @@ All updates happen asynchronously in the background using FastAPI's background t
 devmons/
 ├── crypto-exchange-frontend/    # Vue.js frontend
 │   ├── public/                  # Static assets
-│   │   ├── assets/              # Images, fonts, etc.
-│   │   │   ├── src/                     # Source code
-│   │   │   │   ├── components/          # Reusable Vue components
-│   │   │   │   ├── stores/              # Pinia stores
-│   │   │   │   ├── views/               # Page components
-│   │   │   │   ├── router/              # Vue Router configuration
-│   │   │   │   ├── types/               # TypeScript type definitions
-│   │   │   │   ├── services/            # API services
-│   │   │   │   ├── utils/               # Utility functions
-│   │   │   │   ├── App.vue              # Root component
-│   │   │   │   └── main.ts              # Application entry point
-│   │   │   ├── Dockerfile               # Frontend Docker configuration
-│   │   │   └── package.json             # Dependencies and scripts
-│   │   ├── crypto_exchange_comparison/  # FastAPI backend
-│   │   │   ├── api/                     # API endpoints
-│   │   │   ├── core/                    # Core functionality
-│   │   │   ├── db/                      # Database models and queries
-│   │   │   ├── schemas/                 # Pydantic schemas
-│   │   │   ├── services/                # External service integrations
-│   │   │   ├── main.py                  # Application entry point
-│   │   │   └── Dockerfile               # Backend Docker configuration
-│   │   ├── docker-compose.yml           # Production Docker Compose
-│   │   ├── docker-compose.dev.yml       # Development Docker Compose
-│   │   ├── nginx.conf                   # Nginx configuration
-│   │   └── README.md                    # Project documentation
+│   ├── src/                     # Source code
+│   │   ├── components/          # Reusable Vue components
+│   │   ├── stores/              # Pinia stores
+│   │   ├── views/               # Page components
+│   │   ├── router/              # Vue Router configuration
+│   │   ├── types/               # TypeScript type definitions
+│   │   ├── services/            # API services
+│   │   ├── utils/               # Utility functions
+│   │   ├── App.vue              # Root component
+│   │   └── main.ts              # Application entry point
+│   ├── Dockerfile               # Frontend Docker configuration
+│   └── package.json             # Dependencies and scripts
+├── crypto_exchange_comparison/  # FastAPI backend
+│   ├── app/                     # Application code
+│   │   ├── api/                 # API endpoints
+│   │   ├── core/                # Core functionality
+│   │   ├── database/            # Database models and queries
+│   │   ├── models/              # Data models
+│   │   ├── services/            # External service integrations
+│   │   ├── tasks/               # Background tasks
+│   │   ├── config/              # Application configuration
+│   │   └── main.py              # Application entry point
+│   ├── tests/                   # Backend tests
+│   └── Dockerfile               # Backend Docker configuration
+├── docker-compose.yml           # Production Docker Compose
+├── docker-compose.dev.yml       # Development Docker Compose with hot reload
+└── README.md                    # Project documentation
 ```
 
 ## 📝 API Documentation
@@ -223,6 +251,20 @@ docker compose up -d
    - Check logs:
      ```bash
      docker compose logs api
+     ```
+
+5. **Hot reload not working properly:**
+   - Check the volume mounts in docker-compose.dev.yml
+   - Ensure file watching is enabled in your IDE
+   - Restart the development containers:
+     ```bash
+     docker-compose -f docker-compose.dev.yml down
+     docker-compose -f docker-compose.dev.yml up -d
+     ```
+   - Verify logs to see if file changes are detected:
+     ```bash
+     docker-compose -f docker-compose.dev.yml logs -f frontend
+     docker-compose -f docker-compose.dev.yml logs -f api
      ```
 
 ## 🤝 Contributing
